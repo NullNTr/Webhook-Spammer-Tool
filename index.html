@@ -79,7 +79,7 @@ button{
 .log{
   margin-top:10px;
   font-size:12px;
-  max-height:100px;
+  max-height:120px;
   overflow:auto;
   color:#fecaca;
 }
@@ -91,7 +91,7 @@ button{
   <h1>Webhook Spammer</h1>
 
   <textarea id="urls" class="tokens"
-    placeholder="Webhookトークンを改行で最大50個まで貼り付けられるよ〜"></textarea>
+    placeholder="Webhookトークンを改行で最大50個まで貼り付け"></textarea>
 
   <input id="serverId" placeholder="サーバーID">
   <input id="name" placeholder="Webhook名">
@@ -101,14 +101,14 @@ button{
 
   <div class="row">
     <input id="interval" type="number" value="1000" min="500" placeholder="間隔(ms)">
-    <input id="limit" type="number" placeholder="回数（入力なし＝無限）">
+    <input id="limit" type="number" placeholder="回数（空欄＝無限）">
   </div>
 
   <button class="send" onclick="start()">実行</button>
   <button class="stop" onclick="stop()">停止</button>
 
   <div class="status" id="status">待機中</div>
-  <div class="status">ログ: <span id="count">0</span></div>
+  <div class="status">送信数: <span id="count">0</span></div>
   <div class="log" id="log"></div>
 </div>
 
@@ -117,10 +117,30 @@ let timers=[];
 let running=false;
 let count=0;
 
-function log(t){
+const urlsEl=document.getElementById("urls");
+const serverEl=document.getElementById("serverId");
+const msgEl=document.getElementById("msg");
+const nameEl=document.getElementById("name");
+const intervalEl=document.getElementById("interval");
+const limitEl=document.getElementById("limit");
+const statusEl=document.getElementById("status");
+const countEl=document.getElementById("count");
+
+function now(){
+  const d=new Date();
+  const y=d.getFullYear();
+  const m=String(d.getMonth()+1).padStart(2,"0");
+  const day=String(d.getDate()).padStart(2,"0");
+  const h=String(d.getHours()).padStart(2,"0");
+  const min=String(d.getMinutes()).padStart(2,"0");
+  const s=String(d.getSeconds()).padStart(2,"0");
+  return `[${y}/${m}/${day} ${h}:${min}:${s}]`;
+}
+
+function log(text){
   const l=document.getElementById("log");
-  l.innerHTML+=t+"<br>";
-  l.scrollTop=l.scrollHeight;
+  l.innerHTML += text + "<br>";
+  l.scrollTop = l.scrollHeight;
 }
 
 function isValidServerId(id){
@@ -130,9 +150,8 @@ function isValidServerId(id){
 function start(){
   if(running) return;
 
-  const urls = urlsEl.value.split("\n").map(v=>v.trim()).filter(v=>v);
+  const urls = urlsEl.value.split("\n").map(v=>v.trim()).filter(Boolean);
   const serverId = serverEl.value.trim();
-  const msg = msgEl.value.trim();
   const interval = parseInt(intervalEl.value)||1000;
   const limit = parseInt(limitEl.value)||Infinity;
 
@@ -140,20 +159,27 @@ function start(){
   if(urls.length>50) return statusEl.textContent="トークンは最大50個まで";
   if(!serverId) return statusEl.textContent="サーバーIDを入力してください";
   if(!isValidServerId(serverId)) return statusEl.textContent="サーバーIDが不正です";
-  if(!msg) return statusEl.textContent="メッセージが空です";
+  if(!msgEl.value.trim()) return statusEl.textContent="メッセージが空です";
 
   running=true;
   count=0;
   countEl.textContent="0";
-  statusEl.textContent="送信中… 停止で全停止";
+  statusEl.textContent="送信中… 停止で停止";
+
+  log(`${now()} ▶ 開始 [ServerID: ${serverId}]`);
 
   urls.forEach(url=>{
     send(url);
-    timers.push(setInterval(()=>{ if(count<limit) send(url); }, interval));
+    timers.push(setInterval(()=>{
+      if(count>=limit){ stop(); return; }
+      send(url);
+    },interval));
   });
 }
 
 function send(url){
+  const serverId = serverEl.value.trim();
+
   fetch(url,{
     method:"POST",
     headers:{"Content-Type":"application/json"},
@@ -164,8 +190,10 @@ function send(url){
   }).then(()=>{
     count++;
     countEl.textContent=count;
-    log("✔ 送信成功");
-  }).catch(()=>log("✖ 送信失敗"));
+    log(`${now()} ✔ 送信成功 [ServerID: ${serverId}]`);
+  }).catch(()=>{
+    log(`${now()} ✖ 送信失敗 [ServerID: ${serverId}]`);
+  });
 }
 
 function stop(){
@@ -173,17 +201,8 @@ function stop(){
   timers=[];
   running=false;
   statusEl.textContent="停止しました";
-  log("■ 停止");
+  log(`${now()} ■ 停止`);
 }
-
-const urlsEl=document.getElementById("urls");
-const serverEl=document.getElementById("serverId");
-const msgEl=document.getElementById("msg");
-const nameEl=document.getElementById("name");
-const intervalEl=document.getElementById("interval");
-const limitEl=document.getElementById("limit");
-const statusEl=document.getElementById("status");
-const countEl=document.getElementById("count");
 </script>
 </body>
 </html>
